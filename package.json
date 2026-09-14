@@ -1,0 +1,10 @@
+{
+  "name": "terminal-audio-player",
+  "version": "0.1.0",
+  "description": "A terminal based music player that runs entirely from the command line",
+  "main": "player.js",
+  "scripts": {
+    "start": "node player.js"
+  },
+  "license": "MIT"
+}

@@ -7,17 +7,22 @@ const songs = fs.readdirSync(songDir).filter((name) => name.toLowerCase().endsWi
 let cursor = 0;
 
 function render() {
-    console.log('Terminal Audio Player\n');
+    // console.log only ever appends, so every keypress printed a whole new list.
+    // \x1b[H puts the cursor back at the top left and \x1b[J clears what is below,
+    // so the next frame lands on top of the old one instead of under it.
+    let out = '\x1b[H\x1b[JTerminal Audio Player\n\n';
 
     if (songs.length === 0) {
-        console.log('No songs found. Drop some .mp3 files into the songs/ folder.');
-        return;
+        out += 'No songs found. Drop some .mp3 files into the songs/ folder.\n';
+    } else {
+        songs.forEach((songName, index) => {
+            const marker = index === cursor ? '>' : ' ';
+            out += `${marker} ${index + 1}. ${songName}\n`;
+        });
     }
 
-    songs.forEach((songName, index) => {
-        const marker = index === cursor ? '>' : ' ';
-        console.log(`${marker} ${index + 1}. ${songName}`);
-    });
+    out += '\nup/down move, ctrl+c quits\n';
+    process.stdout.write(out);
 }
 
 // Raw mode hands us every keystroke as it happens, instead of waiting for enter.

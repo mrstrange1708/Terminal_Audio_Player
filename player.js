@@ -28,4 +28,13 @@ render();
 process.stdin.on('data', (data) => {
     // Raw mode also means ctrl+c no longer becomes SIGINT, it arrives as byte 0x03.
     if (data[0] === 0x03) process.exit(0);
+
+    // Arrow keys are not one byte, they are an escape sequence: 0x1b 0x5b then 0x41/0x42.
+    if (data[0] === 0x1b && data[1] === 0x5b) {
+        // Adding songs.length before the modulo keeps going up from the first song positive.
+        if (data[2] === 0x41) cursor = (cursor - 1 + songs.length) % songs.length;
+        else if (data[2] === 0x42) cursor = (cursor + 1) % songs.length;
+        else return;
+        render();
+    }
 });

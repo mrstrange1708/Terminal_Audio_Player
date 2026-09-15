@@ -20,4 +20,12 @@ function render() {
     });
 }
 
+// Raw mode hands us every keystroke as it happens, instead of waiting for enter.
+process.stdin.setRawMode(true);
+process.stdin.resume();
 render();
+
+process.stdin.on('data', (data) => {
+    // Raw mode also means ctrl+c no longer becomes SIGINT, it arrives as byte 0x03.
+    if (data[0] === 0x03) process.exit(0);
+});

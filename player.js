@@ -1,10 +1,13 @@
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const songDir = path.join(__dirname, 'songs');
 const songs = fs.readdirSync(songDir).filter((name) => name.toLowerCase().endsWith('.mp3'));
 
 let cursor = 0;
+let playing = null;
+let playingIndex = -1;
 
 function render() {
     // console.log only ever appends, so every keypress printed a whole new list.
@@ -17,12 +20,19 @@ function render() {
     } else {
         songs.forEach((songName, index) => {
             const marker = index === cursor ? '>' : ' ';
-            out += `${marker} ${index + 1}. ${songName}\n`;
+            const status = index === playingIndex ? ' (playing)' : '';
+            out += `${marker} ${index + 1}. ${songName}${status}\n`;
         });
     }
 
-    out += '\nup/down move, ctrl+c quits\n';
+    out += '\nup/down move, enter plays, ctrl+c quits\n';
     process.stdout.write(out);
+}
+
+function play(index) {
+    playing = spawn('afplay', [path.join(songDir, songs[index])]);
+    playingIndex = index;
+    render();
 }
 
 // Raw mode hands us every keystroke as it happens, instead of waiting for enter.
@@ -33,6 +43,7 @@ render();
 process.stdin.on('data', (data) => {
     // Raw mode also means ctrl+c no longer becomes SIGINT, it arrives as byte 0x03.
     if (data[0] === 0x03) process.exit(0);
+    if (data[0] === 0x0d) return play(cursor);   // enter
 
     // Arrow keys are not one byte, they are an escape sequence: 0x1b 0x5b then 0x41/0x42.
     if (data[0] === 0x1b && data[1] === 0x5b) {

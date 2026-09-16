@@ -30,20 +30,31 @@ function render() {
         const tag = index === playingIndex ? (isPaused ? ' (paused)' : ' (playing)') : '';
         out += `${marker} ${index + 1}. ${songName}${tag}\n`;
     });
-    out += '\nup/down move, enter plays, p pause/resume, ctrl+c quits\n';
+    out += '\nup/down move, enter plays, p pause/resume, s stop, ctrl+c quits\n';
     process.stdout.write(out);
 }
 
+function killAudio() {
+    if (!playing) return;
+    const child = playing;
+    playing = null;
+    playingIndex = -1;
+    isPaused = false;
+    child.kill('SIGKILL');   // SIGKILL lands even while the child is SIGSTOPped
+}
+
 function play(index) {
-    if (playing) playing.kill();   // otherwise the old song keeps going under the new one
-    playing = spawn('afplay', [path.join(songDir, songs[index])]);
+    killAudio();   // otherwise the old song keeps going under the new one
+    const child = spawn('afplay', [path.join(songDir, songs[index])]);
+    playing = child;
     playingIndex = index;
-    playing.on('exit', () => {
-        if (playingIndex === index) {
-            playingIndex = -1;
+    child.on('exit', () => {
+        if (playing === child) {
             playing = null;
-            render();
+            playingIndex = -1;
+            isPaused = false;
         }
+        render();
     });
     render();
 }
@@ -74,6 +85,7 @@ process.stdin.on('data', (data) => {
     if (data[0] === 0x03) return quit();
     if (data[0] === 0x0d) return play(cursor);   // enter
     if (data[0] === 0x70) return togglePause();  // p
+    if (data[0] === 0x73) { killAudio(); return render(); }   // s, back to the start of the song
 
     // Arrow keys are not one byte, they are an escape sequence: 0x1b 0x5b then 0x41/0x42.
     if (data[0] === 0x1b && data[1] === 0x5b) {

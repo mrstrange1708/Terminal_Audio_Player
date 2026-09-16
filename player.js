@@ -30,7 +30,7 @@ function render() {
         const tag = index === playingIndex ? (isPaused ? ' (paused)' : ' (playing)') : '';
         out += `${marker} ${index + 1}. ${songName}${tag}\n`;
     });
-    out += '\nup/down move, enter plays, ctrl+c quits\n';
+    out += '\nup/down move, enter plays, p pause/resume, ctrl+c quits\n';
     process.stdout.write(out);
 }
 
@@ -45,6 +45,15 @@ function play(index) {
             render();
         }
     });
+    render();
+}
+
+function togglePause() {
+    // afplay has no pause of its own, so freeze the process itself. SIGSTOP stops it
+    // mid buffer and SIGCONT carries on from the exact same sample.
+    if (!playing) return;
+    playing.kill(isPaused ? 'SIGCONT' : 'SIGSTOP');
+    isPaused = !isPaused;
     render();
 }
 
@@ -64,6 +73,7 @@ process.stdin.on('data', (data) => {
     // Raw mode also means ctrl+c no longer becomes SIGINT, it arrives as byte 0x03.
     if (data[0] === 0x03) return quit();
     if (data[0] === 0x0d) return play(cursor);   // enter
+    if (data[0] === 0x70) return togglePause();  // p
 
     // Arrow keys are not one byte, they are an escape sequence: 0x1b 0x5b then 0x41/0x42.
     if (data[0] === 0x1b && data[1] === 0x5b) {

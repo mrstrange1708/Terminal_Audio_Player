@@ -13,16 +13,22 @@ if (songs.length === 0) {
 let cursor = 0;
 let playing = null;
 let playingIndex = -1;
+let isPaused = false;
+
+function status() {
+    if (!playing) return 'stopped';
+    return isPaused ? `paused: ${songs[playingIndex]}` : `playing: ${songs[playingIndex]}`;
+}
 
 function render() {
     // console.log only ever appends, so every keypress printed a whole new list.
     // \x1b[H puts the cursor back at the top left and \x1b[J clears what is below,
     // so the next frame lands on top of the old one instead of under it.
-    let out = '\x1b[H\x1b[JTerminal Audio Player\n\n';
+    let out = `\x1b[H\x1b[JTerminal Audio Player  [${status()}]\n\n`;
     songs.forEach((songName, index) => {
         const marker = index === cursor ? '>' : ' ';
-        const status = index === playingIndex ? ' (playing)' : '';
-        out += `${marker} ${index + 1}. ${songName}${status}\n`;
+        const tag = index === playingIndex ? (isPaused ? ' (paused)' : ' (playing)') : '';
+        out += `${marker} ${index + 1}. ${songName}${tag}\n`;
     });
     out += '\nup/down move, enter plays, ctrl+c quits\n';
     process.stdout.write(out);

@@ -69,10 +69,14 @@ function togglePause() {
 }
 
 function quit() {
-    if (playing) playing.kill();
+    killAudio();
     process.stdout.write('\x1b[?25h\n');
     process.exit(0);
 }
+
+// Killing us does not kill the child, so quitting mid song used to leave afplay
+// orphaned and still audible. This catches an unhandled throw as well.
+process.on('exit', killAudio);
 
 // Raw mode hands us every keystroke as it happens, instead of waiting for enter.
 process.stdin.setRawMode(true);

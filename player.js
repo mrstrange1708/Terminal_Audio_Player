@@ -54,12 +54,11 @@ function play(index) {
     playing = child;
     playingIndex = index;
     child.on('exit', () => {
-        if (playing === child) {
-            playing = null;
-            playingIndex = -1;
-            isPaused = false;
-        }
-        render();
+        playing = null;
+        playingIndex = -1;
+        isPaused = false;
+        move(1);                 // the song ended, roll on to the next one
+        return play(cursor);
     });
     render();
 }

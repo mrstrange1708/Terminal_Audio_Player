@@ -30,7 +30,7 @@ function render() {
         const tag = index === playingIndex ? (isPaused ? ' (paused)' : ' (playing)') : '';
         out += `${marker} ${index + 1}. ${songName}${tag}\n`;
     });
-    out += '\nup/down move, enter plays, p pause/resume, s stop, ctrl+c quits\n';
+    out += '\nup/down move, enter plays, n/b next/back, p pause/resume, s stop, ctrl+c quits\n';
     process.stdout.write(out);
 }
 
@@ -64,6 +64,11 @@ function play(index) {
     render();
 }
 
+function skip(delta) {
+    move(delta);
+    play(cursor);
+}
+
 function togglePause() {
     // afplay has no pause of its own, so freeze the process itself. SIGSTOP stops it
     // mid buffer and SIGCONT carries on from the exact same sample.
@@ -93,6 +98,8 @@ process.stdin.on('data', (data) => {
     // Raw mode also means ctrl+c no longer becomes SIGINT, it arrives as byte 0x03.
     if (data[0] === 0x03) return quit();
     if (data[0] === 0x0d) return play(cursor);   // enter
+    if (data[0] === 0x6e) return skip(1);        // n, moves the cursor AND plays
+    if (data[0] === 0x62) return skip(-1);       // b
     if (data[0] === 0x70) return togglePause();  // p
     if (data[0] === 0x73) { killAudio(); return render(); }   // s, back to the start of the song
 

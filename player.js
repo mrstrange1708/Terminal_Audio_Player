@@ -45,6 +45,10 @@ function killAudio() {
     playing = null;
     playingIndex = -1;
     isPaused = false;
+    // A kill of ours fires 'exit' too, which looks exactly like a song that ended and
+    // made n skip two songs at a time. Dropping the listener first is cleaner than a
+    // flag, because there is no flag left to reset afterwards.
+    child.removeAllListeners('exit');
     child.kill('SIGKILL');   // SIGKILL lands even while the child is SIGSTOPped
 }
 
@@ -53,7 +57,7 @@ function play(index) {
     const child = spawn('afplay', [path.join(songDir, songs[index])]);
     playing = child;
     playingIndex = index;
-    child.on('exit', () => {
+    child.on('exit', () => {     // only reached when the song ended on its own
         playing = null;
         playingIndex = -1;
         isPaused = false;

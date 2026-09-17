@@ -34,6 +34,11 @@ function render() {
     process.stdout.write(out);
 }
 
+function move(delta) {
+    // Adding songs.length before the modulo keeps going up from the first song positive.
+    cursor = (cursor + delta + songs.length) % songs.length;
+}
+
 function killAudio() {
     if (!playing) return;
     const child = playing;
@@ -93,9 +98,8 @@ process.stdin.on('data', (data) => {
 
     // Arrow keys are not one byte, they are an escape sequence: 0x1b 0x5b then 0x41/0x42.
     if (data[0] === 0x1b && data[1] === 0x5b) {
-        // Adding songs.length before the modulo keeps going up from the first song positive.
-        if (data[2] === 0x41) cursor = (cursor - 1 + songs.length) % songs.length;
-        else if (data[2] === 0x42) cursor = (cursor + 1) % songs.length;
+        if (data[2] === 0x41) move(-1);        // up: cursor only, never plays
+        else if (data[2] === 0x42) move(1);    // down
         else return;
         render();
     }

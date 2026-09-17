@@ -57,12 +57,15 @@ function play(index) {
     const child = spawn('afplay', [path.join(songDir, songs[index])]);
     playing = child;
     playingIndex = index;
-    child.on('exit', () => {     // only reached when the song ended on its own
+    child.on('exit', (code) => {   // only reached when the song ended on its own
         playing = null;
         playingIndex = -1;
         isPaused = false;
-        move(1);                 // the song ended, roll on to the next one
-        return play(cursor);
+        if (code === 0) {          // nonzero means afplay choked on the file: do not
+            move(1);               // race down the whole list spawning failures
+            return play(cursor);
+        }
+        render();
     });
     render();
 }

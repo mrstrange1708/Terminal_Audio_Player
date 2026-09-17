@@ -30,8 +30,13 @@ function render() {
         const tag = index === playingIndex ? (isPaused ? ' (paused)' : ' (playing)') : '';
         out += `${marker} ${index + 1}. ${songName}${tag}\n`;
     });
-    out += '\nup/down move, enter plays, p pause/resume, s stop, ctrl+c quits\n';
+    out += '\nup/down move, enter plays, n/b next/back, p pause/resume, s stop, ctrl+c quits\n';
     process.stdout.write(out);
+}
+
+function move(delta) {
+    // Adding songs.length before the modulo keeps going up from the first song positive.
+    cursor = (cursor + delta + songs.length) % songs.length;
 }
 
 function killAudio() {
@@ -40,6 +45,10 @@ function killAudio() {
     playing = null;
     playingIndex = -1;
     isPaused = false;
+    // A kill of ours fires 'exit' too, which looks exactly like a song that ended and
+    // made n skip two songs at a time. Dropping the listener first is cleaner than a
+    // flag, because there is no flag left to reset afterwards.
+    child.removeAllListeners('exit');
     child.kill('SIGKILL');   // SIGKILL lands even while the child is SIGSTOPped
 }
 
@@ -48,15 +57,22 @@ function play(index) {
     const child = spawn('afplay', [path.join(songDir, songs[index])]);
     playing = child;
     playingIndex = index;
-    child.on('exit', () => {
-        if (playing === child) {
-            playing = null;
-            playingIndex = -1;
-            isPaused = false;
+    child.on('exit', (code) => {   // only reached when the song ended on its own
+        playing = null;
+        playingIndex = -1;
+        isPaused = false;
+        if (code === 0) {          // nonzero means afplay choked on the file: do not
+            move(1);               // race down the whole list spawning failures
+            return play(cursor);
         }
         render();
     });
     render();
+}
+
+function skip(delta) {
+    move(delta);
+    play(cursor);
 }
 
 function togglePause() {
@@ -88,14 +104,15 @@ process.stdin.on('data', (data) => {
     // Raw mode also means ctrl+c no longer becomes SIGINT, it arrives as byte 0x03.
     if (data[0] === 0x03) return quit();
     if (data[0] === 0x0d) return play(cursor);   // enter
+    if (data[0] === 0x6e) return skip(1);        // n, moves the cursor AND plays
+    if (data[0] === 0x62) return skip(-1);       // b
     if (data[0] === 0x70) return togglePause();  // p
     if (data[0] === 0x73) { killAudio(); return render(); }   // s, back to the start of the song
 
     // Arrow keys are not one byte, they are an escape sequence: 0x1b 0x5b then 0x41/0x42.
     if (data[0] === 0x1b && data[1] === 0x5b) {
-        // Adding songs.length before the modulo keeps going up from the first song positive.
-        if (data[2] === 0x41) cursor = (cursor - 1 + songs.length) % songs.length;
-        else if (data[2] === 0x42) cursor = (cursor + 1) % songs.length;
+        if (data[2] === 0x41) move(-1);        // up: cursor only, never plays
+        else if (data[2] === 0x42) move(1);    // down
         else return;
         render();
     }

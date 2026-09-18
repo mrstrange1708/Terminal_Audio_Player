@@ -14,6 +14,7 @@ let cursor = 0;
 let playing = null;
 let playingIndex = -1;
 let isPaused = false;
+let duration = 0;   // seconds, 0 until afinfo answers
 
 function status() {
     if (!playing) return 'stopped';
@@ -34,6 +35,21 @@ function render() {
     process.stdout.write(out);
 }
 
+function getDuration(file) {
+    // afplay cannot tell us how long a song is, but afinfo prints
+    // "estimated duration: 3.239184 sec" for any file it can read.
+    return new Promise((resolve) => {
+        const info = spawn('afinfo', [file]);
+        let out = '';
+        info.stdout.on('data', (chunk) => { out += chunk; });
+        info.on('error', () => resolve(0));
+        info.on('close', () => {
+            const match = out.match(/estimated duration: ([\d.]+)/);
+            resolve(match ? parseFloat(match[1]) : 0);
+        });
+    });
+}
+
 function move(delta) {
     // Adding songs.length before the modulo keeps going up from the first song positive.
     cursor = (cursor + delta + songs.length) % songs.length;
@@ -52,8 +68,9 @@ function killAudio() {
     child.kill('SIGKILL');   // SIGKILL lands even while the child is SIGSTOPped
 }
 
-function play(index) {
+async function play(index) {
     killAudio();   // otherwise the old song keeps going under the new one
+    duration = await getDuration(path.join(songDir, songs[index]));
     const child = spawn('afplay', [path.join(songDir, songs[index])]);
     playing = child;
     playingIndex = index;

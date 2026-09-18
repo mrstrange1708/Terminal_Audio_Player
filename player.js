@@ -18,6 +18,7 @@ let isPaused = false;
 let duration = 0;   // seconds, 0 until afinfo answers
 let elapsed = 0;    // seconds, counted by hand because afplay will not tell us
 let ticker = null;
+let generation = 0;   // bumped on every stop or start, so a slow afinfo cannot start a stale song
 
 function mmss(seconds) {
     const total = Math.floor(seconds);
@@ -81,6 +82,7 @@ function stopTicker() {
 }
 
 function killAudio() {
+    generation++;
     stopTicker();
     duration = 0;   // reset now, or the bar shows the last song's numbers while afinfo runs
     elapsed = 0;
@@ -98,7 +100,12 @@ function killAudio() {
 
 async function play(index) {
     killAudio();   // otherwise the old song keeps going under the new one
-    duration = await getDuration(path.join(songDir, songs[index]));
+    const mine = generation;
+    playingIndex = index;
+    render();      // paint the new song straight away, the bar says "reading duration"
+    const seconds = await getDuration(path.join(songDir, songs[index]));
+    if (mine !== generation) return;   // superseded while afinfo ran: user hit n, s or ctrl+c
+    duration = seconds;
     const child = spawn('afplay', [path.join(songDir, songs[index])]);
     playing = child;
     playingIndex = index;

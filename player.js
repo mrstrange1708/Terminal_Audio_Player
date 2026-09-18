@@ -3,6 +3,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const songDir = path.join(__dirname, 'songs');
+const BAR_WIDTH = 50;
 const songs = fs.readdirSync(songDir).filter((name) => name.toLowerCase().endsWith('.mp3'));
 
 if (songs.length === 0) {
@@ -17,6 +18,20 @@ let isPaused = false;
 let duration = 0;   // seconds, 0 until afinfo answers
 let elapsed = 0;    // seconds, counted by hand because afplay will not tell us
 let ticker = null;
+
+function mmss(seconds) {
+    const total = Math.floor(seconds);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function progressBar() {
+    if (playingIndex === -1) return `[${'-'.repeat(BAR_WIDTH)}]   --:-- / --:--`;
+    if (!duration) return `[${'-'.repeat(BAR_WIDTH)}]   reading duration...`;
+    const fraction = Math.min(elapsed / duration, 1);   // capped, so the bar never passes 100%
+    const filled = Math.round(fraction * BAR_WIDTH);
+    const bar = '#'.repeat(filled) + '-'.repeat(BAR_WIDTH - filled);
+    return `[${bar}] ${String(Math.round(fraction * 100)).padStart(3)}%  ${mmss(elapsed)} / ${mmss(duration)}`;
+}
 
 function status() {
     if (!playing) return 'stopped';
@@ -33,6 +48,7 @@ function render() {
         const tag = index === playingIndex ? (isPaused ? ' (paused)' : ' (playing)') : '';
         out += `${marker} ${index + 1}. ${songName}${tag}\n`;
     });
+    out += `\n${progressBar()}\n`;
     out += '\nup/down move, enter plays, n/b next/back, p pause/resume, s stop, ctrl+c quits\n';
     process.stdout.write(out);
 }

@@ -3,6 +3,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const songDir = path.join(__dirname, 'songs');
+const BAR_WIDTH = 50;
 const songs = fs.readdirSync(songDir).filter((name) => name.toLowerCase().endsWith('.mp3'));
 
 if (songs.length === 0) {
@@ -14,6 +15,24 @@ let cursor = 0;
 let playing = null;
 let playingIndex = -1;
 let isPaused = false;
+let duration = 0;   // seconds, 0 until afinfo answers
+let elapsed = 0;    // seconds, counted by hand because afplay will not tell us
+let ticker = null;
+let generation = 0;   // bumped on every stop or start, so a slow afinfo cannot start a stale song
+
+function mmss(seconds) {
+    const total = Math.floor(seconds);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function progressBar() {
+    if (playingIndex === -1) return `[${'-'.repeat(BAR_WIDTH)}]   --:-- / --:--`;
+    if (!duration) return `[${'-'.repeat(BAR_WIDTH)}]   reading duration...`;
+    const fraction = Math.min(elapsed / duration, 1);   // capped, so the bar never passes 100%
+    const filled = Math.round(fraction * BAR_WIDTH);
+    const bar = '#'.repeat(filled) + '-'.repeat(BAR_WIDTH - filled);
+    return `[${bar}] ${String(Math.round(fraction * 100)).padStart(3)}%  ${mmss(elapsed)} / ${mmss(duration)}`;
+}
 
 function status() {
     if (!playing) return 'stopped';
@@ -30,8 +49,24 @@ function render() {
         const tag = index === playingIndex ? (isPaused ? ' (paused)' : ' (playing)') : '';
         out += `${marker} ${index + 1}. ${songName}${tag}\n`;
     });
+    out += `\n${progressBar()}\n`;
     out += '\nup/down move, enter plays, n/b next/back, p pause/resume, s stop, ctrl+c quits\n';
     process.stdout.write(out);
+}
+
+function getDuration(file) {
+    // afplay cannot tell us how long a song is, but afinfo prints
+    // "estimated duration: 3.239184 sec" for any file it can read.
+    return new Promise((resolve) => {
+        const info = spawn('afinfo', [file]);
+        let out = '';
+        info.stdout.on('data', (chunk) => { out += chunk; });
+        info.on('error', () => resolve(0));
+        info.on('close', () => {
+            const match = out.match(/estimated duration: ([\d.]+)/);
+            resolve(match ? parseFloat(match[1]) : 0);
+        });
+    });
 }
 
 function move(delta) {
@@ -39,7 +74,18 @@ function move(delta) {
     cursor = (cursor + delta + songs.length) % songs.length;
 }
 
+function stopTicker() {
+    // Without this the old interval stays alive next to the new one and elapsed
+    // climbs at double speed, then triple on the song after that.
+    if (ticker) clearInterval(ticker);
+    ticker = null;
+}
+
 function killAudio() {
+    generation++;
+    stopTicker();
+    duration = 0;   // reset now, or the bar shows the last song's numbers while afinfo runs
+    elapsed = 0;
     if (!playing) return;
     const child = playing;
     playing = null;
@@ -52,12 +98,21 @@ function killAudio() {
     child.kill('SIGKILL');   // SIGKILL lands even while the child is SIGSTOPped
 }
 
-function play(index) {
+async function play(index) {
     killAudio();   // otherwise the old song keeps going under the new one
+    const mine = generation;
+    playingIndex = index;
+    render();      // paint the new song straight away, the bar says "reading duration"
+    const seconds = await getDuration(path.join(songDir, songs[index]));
+    if (mine !== generation) return;   // superseded while afinfo ran: user hit n, s or ctrl+c
+    duration = seconds;
     const child = spawn('afplay', [path.join(songDir, songs[index])]);
     playing = child;
     playingIndex = index;
     child.on('exit', (code) => {   // only reached when the song ended on its own
+        stopTicker();
+        duration = 0;
+        elapsed = 0;
         playing = null;
         playingIndex = -1;
         isPaused = false;
@@ -67,6 +122,13 @@ function play(index) {
         }
         render();
     });
+    // Count time ourselves, 0.1s at a time. Paused means simply not counting, so
+    // the bar freezes exactly where it was.
+    ticker = setInterval(() => {
+        if (!playing || isPaused) return;
+        elapsed = Math.min(elapsed + 0.1, duration || elapsed + 0.1);
+        render();
+    }, 100);
     render();
 }
 

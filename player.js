@@ -15,6 +15,8 @@ let playing = null;
 let playingIndex = -1;
 let isPaused = false;
 let duration = 0;   // seconds, 0 until afinfo answers
+let elapsed = 0;    // seconds, counted by hand because afplay will not tell us
+let ticker = null;
 
 function status() {
     if (!playing) return 'stopped';
@@ -84,6 +86,13 @@ async function play(index) {
         }
         render();
     });
+    // Count time ourselves, 0.1s at a time. Paused means simply not counting, so
+    // the bar freezes exactly where it was.
+    ticker = setInterval(() => {
+        if (!playing || isPaused) return;
+        elapsed = Math.min(elapsed + 0.1, duration || elapsed + 0.1);
+        render();
+    }, 100);
     render();
 }
 

@@ -73,7 +73,17 @@ function move(delta) {
     cursor = (cursor + delta + songs.length) % songs.length;
 }
 
+function stopTicker() {
+    // Without this the old interval stays alive next to the new one and elapsed
+    // climbs at double speed, then triple on the song after that.
+    if (ticker) clearInterval(ticker);
+    ticker = null;
+}
+
 function killAudio() {
+    stopTicker();
+    duration = 0;   // reset now, or the bar shows the last song's numbers while afinfo runs
+    elapsed = 0;
     if (!playing) return;
     const child = playing;
     playing = null;
@@ -93,6 +103,9 @@ async function play(index) {
     playing = child;
     playingIndex = index;
     child.on('exit', (code) => {   // only reached when the song ended on its own
+        stopTicker();
+        duration = 0;
+        elapsed = 0;
         playing = null;
         playingIndex = -1;
         isPaused = false;

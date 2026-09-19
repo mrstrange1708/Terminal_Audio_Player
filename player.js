@@ -4,10 +4,16 @@ const { spawn } = require('child_process');
 
 const songDir = path.join(__dirname, 'songs');
 const BAR_WIDTH = 50;
-const songs = fs.readdirSync(songDir).filter((name) => name.toLowerCase().endsWith('.mp3'));
+let songs = [];
+try {
+    songs = fs.readdirSync(songDir).filter((name) => name.toLowerCase().endsWith('.mp3')).sort();
+} catch {
+    console.log(`Terminal Audio Player\n\nNo songs folder found. Create ${songDir} and drop some .mp3 files in it.`);
+    process.exit(1);
+}
 
 if (songs.length === 0) {
-    console.log('Terminal Audio Player\n\nNo songs found. Drop some .mp3 files into the songs/ folder.');
+    console.log(`Terminal Audio Player\n\nNo songs found. Drop some .mp3 files into ${songDir}`);
     process.exit(0);
 }
 

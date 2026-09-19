@@ -114,6 +114,10 @@ async function play(index) {
     duration = seconds;
     const child = spawn('afplay', [path.join(songDir, songs[index])]);
     playing = child;
+    child.on('error', (err) => {
+        if (err.code === 'ENOENT') fail('afplay not found. This player needs macOS (afplay and afinfo ship with it).');
+        fail(`Could not play ${songs[index]}: ${err.message}`);
+    });
     playingIndex = index;
     child.on('exit', (code) => {   // only reached when the song ended on its own
         stopTicker();
@@ -152,25 +156,37 @@ function togglePause() {
     render();
 }
 
-function quit() {
+let cleanedUp = false;
+
+function cleanup() {
+    if (cleanedUp) return;   // runs once, or the exit hook repaints over fail()'s message
+    cleanedUp = true;
     killAudio();
-    process.stdout.write('\x1b[?25h\n');
-    process.exit(0);
+    process.stdout.write('\x1b[2J\x1b[H\x1b[?25h');   // clear, home, give the cursor back
+}
+
+function fail(message) {
+    cleanup();
+    console.error(message);
+    process.exit(1);
 }
 
 // Killing us does not kill the child, so quitting mid song used to leave afplay
 // orphaned and still audible. This catches an unhandled throw as well.
-process.on('exit', killAudio);
+process.on('exit', cleanup);
 
 // Raw mode hands us every keystroke as it happens, instead of waiting for enter.
 process.stdin.setRawMode(true);
 process.stdin.resume();
-process.stdout.write('\x1b[?25l');   // hide the blinking terminal cursor
+process.stdout.write('\x1b[2J\x1b[?25l');   // clear once, hide the blinking cursor
 render();
 
 process.stdin.on('data', (data) => {
     // Raw mode also means ctrl+c no longer becomes SIGINT, it arrives as byte 0x03.
-    if (data[0] === 0x03) return quit();
+    if (data[0] === 0x03 || data[0] === 0x71) {   // ctrl+c or q
+        cleanup();
+        return process.exit(0);
+    }
     if (data[0] === 0x0d) return play(cursor);   // enter
     if (data[0] === 0x6e) return skip(1);        // n, moves the cursor AND plays
     if (data[0] === 0x62) return skip(-1);       // b
